@@ -1,0 +1,6 @@
+flask
+paddlepaddle
+paddleocr
+pillow
+python-dotenv
+requests

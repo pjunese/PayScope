@@ -1,0 +1,9 @@
+.DS_Store
+*/.DS_Store
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
+spendmate/venv/
+spendmate/.env*
+spendmate-ocr/venv/
+spendmate-ocr/.env*
