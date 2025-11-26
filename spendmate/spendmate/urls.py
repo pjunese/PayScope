@@ -25,10 +25,16 @@ MVC패턴과 동일한데 이때의 View 가 여기서는 Template, controller �
 """
 # URLconf(메뉴판) 구현 
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import include, path
+
+
+def health_view(_request):
+    return JsonResponse({"status": "ok"})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('health/', health_view, name='health'),
     path('api/auth/', include('accounts.urls')),
     path('api/expenses/', include('expenses.urls')),
 ]
