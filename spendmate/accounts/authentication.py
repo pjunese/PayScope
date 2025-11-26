@@ -41,13 +41,14 @@ class MongoTokenAuthentication(BaseAuthentication):
     Custom DRF authentication backend that validates API tokens stored in MongoDB.
     """
 
-    keyword = b"token"
+    keyword = "token"
 
     def authenticate(self, request) -> Optional[Tuple[MongoAuthUser, str]]:
         auth = get_authorization_header(request).split()
         if not auth:
             return None
-        if auth[0].lower() != self.keyword:
+        prefix = smart_str(auth[0]).strip().lower()
+        if prefix != self.keyword:
             return None
         if len(auth) != 2:
             raise exceptions.AuthenticationFailed("유효하지 않은 인증 헤더입니다.")
