@@ -94,6 +94,54 @@ export async function fetchAdminUsers(token) {
   return response.json()
 }
 
+export async function updateProfile(token, payload) {
+  const response = await fetch(`${API_BASE}/api/auth/profile/`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Token ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error?.detail || '프로필을 업데이트하지 못했습니다.')
+  }
+  return response.json()
+}
+
+export async function changePassword(token, payload) {
+  const response = await fetch(`${API_BASE}/api/auth/password/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Token ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error?.detail || '비밀번호를 변경하지 못했습니다.')
+  }
+  return response.json()
+}
+
+export async function checkNicknameAvailability(token, nickname) {
+  const response = await fetch(
+    `${API_BASE}/api/auth/nickname/check/?nickname=${encodeURIComponent(nickname)}`,
+    {
+      headers: {
+        Authorization: `Token ${token}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error?.detail || '닉네임을 확인하지 못했습니다.')
+  }
+  return response.json()
+}
+
 export async function updateUserRole(userId, role, token) {
   const response = await fetch(`${API_BASE}/api/auth/admin/users/${userId}/role/`, {
     method: 'PATCH',

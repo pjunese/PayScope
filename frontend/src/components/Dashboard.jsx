@@ -31,6 +31,12 @@ const formatDisplayDate = (iso) => {
   return `${year}.${month}.${day}`
 }
 
+const formatMonthLabel = (value) => {
+  if (!value) return ''
+  const [year, month] = value.split('-')
+  return `${year}년 ${month}월`
+}
+
 const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']
 const VIEW_OPTIONS = [
   { value: 'daily', label: '일별' },
@@ -60,8 +66,8 @@ function GoalChart({ labels, goals, actuals }) {
   if (!labels.length) return <p className="hint">표시할 데이터가 없습니다.</p>
   const chartData = labels.map((label, index) => ({
     label,
-    goal: goals[index] ?? null,
-    actual: actuals[index] ?? null,
+    goal: goals[index] ?? 0,
+    actual: actuals[index] ?? 0,
   }))
   return (
     <div className="goal-chart">
@@ -77,11 +83,17 @@ function GoalChart({ labels, goals, actuals }) {
               <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.4} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" opacity={0.3} />
-          <XAxis dataKey="label" tickFormatter={(value) => `${value.slice(-2)}월`} tick={{ fill: '#cbd5f5', fontSize: 12 }} axisLine={false} tickLine={false} />
-          <YAxis tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`} tick={{ fill: '#cbd5f5', fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+          <CartesianGrid stroke="#e1e9fb" strokeDasharray="3 3" opacity={0.8} />
+          <XAxis dataKey="label" tickFormatter={(value) => `${value.slice(-2)}월`} tick={{ fill: '#4b5563', fontSize: 12 }} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`} tick={{ fill: '#4b5563', fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
           <Tooltip
-            contentStyle={{ background: '#0f172a', border: 'none', borderRadius: 12, color: '#e2e8f0' }}
+            contentStyle={{
+              background: '#ffffff',
+              border: '1px solid #d4e5ff',
+              borderRadius: 12,
+              color: '#1f2933',
+              boxShadow: '0 12px 30px rgba(15,23,42,0.08)',
+            }}
             formatter={(value) => `${formatNumber(value)} 원`}
             labelFormatter={(value) => {
               const [year, month] = value.split('-')
@@ -119,7 +131,8 @@ export default function Dashboard({ token, profile }) {
   const [dailyError, setDailyError] = useState('')
   const [categoryError, setCategoryError] = useState('')
   const [goalSummary, setGoalSummary] = useState(null)
-  const [goalInput, setGoalInput] = useState('')
+  const [goalAmountInput, setGoalAmountInput] = useState('')
+  const [goalMonthInput, setGoalMonthInput] = useState(monthKeyFromDate(new Date()))
   const [goalLoading, setGoalLoading] = useState(false)
   const [goalSaving, setGoalSaving] = useState(false)
   const [goalError, setGoalError] = useState('')
@@ -219,12 +232,6 @@ export default function Dashboard({ token, profile }) {
       try {
         const data = await fetchGoalSummary(token, 6)
         setGoalSummary(data)
-        const goalValue = data?.current?.goal
-        if (goalValue) {
-          setGoalInput(String(Math.round(goalValue)))
-        } else {
-          setGoalInput('')
-        }
       } catch (err) {
         setGoalError(err.message || '목표 정보를 불러오지 못했습니다.')
       } finally {
@@ -253,6 +260,15 @@ export default function Dashboard({ token, profile }) {
     }
     loadCalendar()
   }, [token, calendarMonth, view])
+
+  useEffect(() => {
+    if (!goalSummary) return
+    const goalValue = goalSummary.current?.goal
+    const currentMonth =
+      goalSummary.current?.month || (goalSummary.months ? goalSummary.months.at(-1) : null)
+    setGoalAmountInput(goalValue ? String(Math.round(goalValue)) : '')
+    setGoalMonthInput(currentMonth || monthKeyFromDate(new Date()))
+  }, [goalSummary])
 
   const stats = useMemo(() => {
     if (!dailyReport) return { total: 0, average: 0, highest: 0 }
@@ -365,25 +381,24 @@ const dailySeries = useMemo(() => {
 
   const handleGoalSave = async () => {
     if (!token) return
-    if (!goalInput) {
+    if (!goalAmountInput) {
       setGoalError('목표 금액을 입력하세요.')
       return
     }
-    const amount = Number(goalInput)
+    const amount = Number(goalAmountInput)
     if (Number.isNaN(amount) || amount <= 0) {
       setGoalError('유효한 금액을 입력하세요.')
+      return
+    }
+    if (!goalMonthInput) {
+      setGoalError('목표 월을 선택하세요.')
       return
     }
     setGoalSaving(true)
     setGoalError('')
     try {
-      const now = new Date()
-      const month =
-        goalSummary?.current?.month || monthKeyFromDate(new Date(now.getFullYear(), now.getMonth(), 1))
-      const data = await saveMonthlyGoal({ token, amount, month })
+      const data = await saveMonthlyGoal({ token, amount, month: goalMonthInput })
       setGoalSummary(data)
-      const goalValue = data?.current?.goal
-      setGoalInput(goalValue ? String(Math.round(goalValue)) : '')
     } catch (err) {
       setGoalError(err.message || '목표를 저장하지 못했습니다.')
     } finally {
@@ -439,9 +454,13 @@ const dailySeries = useMemo(() => {
     <div className="dashboard">
       <header className="dashboard__header">
         <div>
-          <p className="nano muted">SpendMate · Insights</p>
+          <p className="nano muted">PayScope · Insights</p>
           <div className="dashboard__title-row">
-            <h1>{profile?.name ? `${profile.name}'s Spend Report` : 'Spend Report'}</h1>
+            <h1>
+              {profile?.nickname || profile?.name
+                ? `${profile?.nickname || profile?.name}'s Spend Report`
+                : 'Spend Report'}
+            </h1>
             {goalTier && (
               <div
                 className="goal-tier badge"
@@ -457,37 +476,37 @@ const dailySeries = useMemo(() => {
           {currentRange && <p className="nano muted">{`${currentRange.display} (KST)`}</p>}
         </div>
         <div className="dashboard__filters">
-            <div className="segmented">
-              {VIEW_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={view === opt.value ? 'active' : ''}
-                  onClick={() => setView(opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
+          {view === 'daily' && (
+            <div className="week-controls">
+              <button
+                className="week-button"
+                type="button"
+                onClick={() => setDailyOffset((prev) => prev + 1)}
+              >
+                이전 주
+              </button>
+              <button
+                className="week-button"
+                type="button"
+                onClick={() => setDailyOffset((prev) => Math.max(0, prev - 1))}
+                disabled={dailyOffset === 0}
+              >
+                다음 주
+              </button>
             </div>
-            {view === 'daily' && (
-              <div className="week-controls">
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={() => setDailyOffset((prev) => prev + 1)}
-                >
-                  이전 주
-                </button>
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={() => setDailyOffset((prev) => Math.max(0, prev - 1))}
-                  disabled={dailyOffset === 0}
-                >
-                  다음 주
-                </button>
-              </div>
-            )}
+          )}
+          <div className="segmented">
+            {VIEW_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={view === opt.value ? 'active' : ''}
+                onClick={() => setView(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -621,11 +640,18 @@ const dailySeries = useMemo(() => {
                 </div>
               </div>
               <div className="goal-input-row">
+                <select value={goalMonthInput} onChange={(event) => setGoalMonthInput(event.target.value)}>
+                  {(goalSummary?.months || [goalMonthInput]).map((month) => (
+                    <option key={month} value={month}>
+                      {formatMonthLabel(month)}
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="number"
-                  value={goalInput}
+                  value={goalAmountInput}
                   placeholder="목표 금액"
-                  onChange={(event) => setGoalInput(event.target.value)}
+                  onChange={(event) => setGoalAmountInput(event.target.value)}
                 />
                 <button type="button" className="btn primary" onClick={handleGoalSave} disabled={goalSaving || !token}>
                   {goalSaving ? '저장 중...' : '목표 저장'}

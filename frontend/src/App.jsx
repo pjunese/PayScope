@@ -13,6 +13,7 @@ import { fetchLatestExpense } from './api/expenses'
 import Dashboard from './components/Dashboard'
 import AdminUsersPage from './pages/AdminUsers'
 import AdminExpensesPage from './pages/AdminExpenses'
+import MyPage from './pages/MyPage'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
 const DRAFT_STORAGE_KEY = 'spendmate:draft'
@@ -178,6 +179,11 @@ function LandingPage({
   isLoading,
   error,
   statusMessage,
+  isDragActive,
+  onDragEnter,
+  onDragOver,
+  onDragLeave,
+  onDrop,
   draft,
   onResumeDraft,
   onDiscardDraft,
@@ -217,10 +223,25 @@ function LandingPage({
             style={{ display: 'none' }}
             onChange={handleFilePick}
           />
-          <div className="upload" onClick={() => hiddenInput.current?.click()}>
-            <strong>이미지 드롭 또는 클릭</strong>
-            <div className="nano">PNG · JPG · HEIC 지원</div>
-            {fileName && <div className="uploaded-name">{fileName}</div>}
+          <div
+            className={`upload ${isDragActive ? 'drag-active' : ''}`}
+            onClick={() => hiddenInput.current?.click()}
+            onDragEnter={onDragEnter}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            {fileName ? (
+              <>
+                <div className="uploaded-name">{fileName}</div>
+                <div className="upload-subtext">다른 이미지를 드롭하거나 클릭해 교체할 수 있습니다.</div>
+              </>
+            ) : (
+              <>
+                <div className="upload-title">이미지 드롭 또는 클릭</div>
+                <div className="upload-subtitle">PNG · JPG · HEIC 지원</div>
+              </>
+            )}
           </div>
           <div className="upload-actions" style={{ gap: '10px' }}>
             <button className="btn primary" type="button" onClick={() => hiddenInput.current?.click()}>
@@ -292,6 +313,19 @@ function LandingPage({
   )
 }
 
+function UploadToast({ feedback }) {
+  if (!feedback) return null
+  const { id, message } = feedback
+  return (
+    <div className="upload-toast" role="status" aria-live="polite" key={id}>
+      <div className="upload-toast__message">{message}</div>
+      <div className="upload-toast__bar">
+        <div className="upload-toast__fill" />
+      </div>
+    </div>
+  )
+}
+
 function ResultView({
   ocrResult,
   selections,
@@ -304,7 +338,6 @@ function ResultView({
   totalAmountDisplay,
   selectedSummary,
   isSaving,
-  saveMessage,
   error,
   onBack,
   onToggle,
@@ -469,7 +502,6 @@ function ResultView({
           <button type="button" className="primary" onClick={onSave} disabled={isSaving}>
             {isSaving ? '저장 중...' : '선택한 정보 저장'}
           </button>
-          {saveMessage && <p className="success">{saveMessage}</p>}
         </div>
       </section>
     </div>
@@ -481,6 +513,7 @@ function App() {
   const location = useLocation()
   const [file, setFile] = useState(null)
   const [fileName, setFileName] = useState('')
+  const [isDragActive, setIsDragActive] = useState(false)
   const hiddenInput = useRef(null)
   const [token, setToken] = useState(() =>
     typeof window !== 'undefined' ? window.localStorage.getItem('token') : null
@@ -490,6 +523,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
+  const [uploadFeedback, setUploadFeedback] = useState(null)
   const [providers, setProviders] = useState({ google: true, naver: true })
   const [authState, setAuthState] = useState({ loading: false, error: '' })
   const oauthPollRef = useRef(null)
@@ -502,11 +536,9 @@ function App() {
   const [participantCount, setParticipantCount] = useState(1)
   const [customShare, setCustomShare] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState('')
   const [oauthState, setOauthState] = useState(null)
   const [draftData, setDraftData] = useState(null)
   const [isLoadingLatestSaved, setIsLoadingLatestSaved] = useState(false)
-  const [toasts, setToasts] = useState([])
   const [uploadController, setUploadController] = useState(null)
   const isAdminUser = profile?.role === 'admin' || profile?.role === 'subadmin'
   const navClass = (path, exact = true) => {
@@ -597,6 +629,17 @@ function App() {
       })
   }, [token])
 
+  useEffect(() => {
+    if (!uploadFeedback) return
+    const timeout = setTimeout(() => setUploadFeedback(null), 2100)
+    return () => clearTimeout(timeout)
+  }, [uploadFeedback])
+
+  const pushFeedback = (message) => {
+    const id = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}`
+    setUploadFeedback({ id, message })
+  }
+
   const handleAuth = (nextToken, user) => {
     if (nextToken) {
       if (typeof window !== 'undefined') window.localStorage.setItem('token', nextToken)
@@ -611,11 +654,57 @@ function App() {
     }
   }
 
-  const handleFilePick = (event) => {
-    const next = event.target.files?.[0]
+  const applySelectedFile = (next) => {
     setFile(next || null)
     setFileName(next ? next.name : '')
     setError('')
+    if (next) {
+      pushFeedback('이미지를 불러왔습니다.')
+    } else {
+      setUploadFeedback(null)
+    }
+  }
+
+  const handleProfileUpdate = (nextProfile) => {
+    if (nextProfile) {
+      setProfile(nextProfile)
+    }
+  }
+
+  const handleFilePick = (event) => {
+    const next = event.target.files?.[0]
+    applySelectedFile(next || null)
+  }
+
+  const handleDragEnter = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragActive(true)
+  }
+
+  const handleDragOver = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!isDragActive) setIsDragActive(true)
+  }
+
+  const handleDragLeave = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const next = event.relatedTarget
+    if (next && event.currentTarget.contains(next)) return
+    setIsDragActive(false)
+  }
+
+  const handleDrop = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const next = event.dataTransfer?.files?.[0] ?? null
+    applySelectedFile(next)
+    setIsDragActive(false)
+    if (hiddenInput.current) {
+      hiddenInput.current.value = ''
+    }
   }
 
   const handleLogout = () => {
@@ -628,7 +717,6 @@ function App() {
   const handleBackToLanding = () => {
     setOcrResult(null)
     setDocumentId(null)
-    setSaveMessage('')
     setStatusMessage('')
     navigate('/')
   }
@@ -646,12 +734,8 @@ function App() {
     navigate('/result')
   }
 
-  const showToast = (message, variant = 'success') => {
-    const id = crypto.randomUUID()
-    setToasts((prev) => [...prev, { id, message, variant }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id))
-    }, 3000)
+  const showToast = (message) => {
+    pushFeedback(message)
   }
 
   const handleDiscardDraft = () => {
@@ -718,7 +802,6 @@ function App() {
     setStatusMessage('업로드 및 추출 중...')
     setOcrResult(null)
     setDocumentId(null)
-    setSaveMessage('')
 
     const formData = new FormData()
     formData.append('file', file)
@@ -748,7 +831,6 @@ function App() {
       setSplitMode('equal')
       setParticipantCount(1)
       setCustomShare('')
-      setSaveMessage('')
       setStatusMessage('추출이 완료되었습니다.')
       navigate('/result')
     } catch (fetchError) {
@@ -878,7 +960,6 @@ function App() {
     }
     setIsSaving(true)
     setError('')
-    setSaveMessage('')
     try {
       const manualAmountValue = splitMode === 'custom' ? parseAmount(customShare) : null
       const amountValueForSave = manualAmountValue ?? totalAmount ?? null
@@ -911,7 +992,7 @@ function App() {
           payload?.detail ?? `지출 저장에 실패했습니다. (${response.status})`
         throw new Error(message)
       }
-      setSaveMessage('지출 정보가 저장되었습니다.')
+      pushFeedback('지출 정보가 저장되었습니다.', 'success')
       if (typeof window !== 'undefined') window.localStorage.removeItem(DRAFT_STORAGE_KEY)
       setDraftData(null)
     } catch (saveError) {
@@ -926,8 +1007,8 @@ function App() {
       <div className="page">
         <header className="topbar">
           <div className="brand">
-            <div className="brand-mark">S</div>
-            <span>SpendMate OCR</span>
+            <div className="brand-mark">P</div>
+            <span>PayScope</span>
           </div>
           <nav aria-label="primary">
             <Link className={navClass('/')} to="/">
@@ -935,6 +1016,9 @@ function App() {
             </Link>
             <Link className={navClass('/dashboard', false)} to="/dashboard">
               Dashboard
+            </Link>
+            <Link className={navClass('/mypage', false)} to="/mypage">
+              My Page
             </Link>
             {isAdminUser && (
               <>
@@ -959,7 +1043,7 @@ function App() {
               </>
             ) : (
               <>
-                <span className="nano">{profile?.email || 'Logged in'}</span>
+                <span className="nano">{profile?.nickname || profile?.email || 'Logged in'}</span>
                 <button className="btn primary" type="button" onClick={handleLogout}>
                   Logout
                 </button>
@@ -982,6 +1066,11 @@ function App() {
                   isLoading={isLoading}
                   error={error}
                   statusMessage={statusMessage}
+                  isDragActive={isDragActive}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
                   draft={draftData}
                   onResumeDraft={handleResumeDraft}
                   onDiscardDraft={handleDiscardDraft}
@@ -1007,7 +1096,6 @@ function App() {
                     selectedSummary={selectedSummary}
                     onSelectionEdit={handleSelectionInputChange}
                     isSaving={isSaving}
-                    saveMessage={saveMessage}
                     error={error}
                     onBack={handleBackToLanding}
                     onToggle={toggleSelection}
@@ -1022,6 +1110,17 @@ function App() {
               }
             />
             <Route path="/dashboard" element={<Dashboard token={token} profile={profile} />} />
+            <Route
+              path="/mypage"
+              element={
+                <MyPage
+                  token={token}
+                  profile={profile}
+                  onToast={pushFeedback}
+                  onProfileUpdate={handleProfileUpdate}
+                />
+              }
+            />
             <Route
               path="/admin/users"
               element={
@@ -1045,6 +1144,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <UploadToast feedback={uploadFeedback} />
       </div>
 
       <LoginModal
@@ -1118,13 +1218,6 @@ function App() {
           }
         }}
       />
-      <div className="toast-container">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast ${toast.variant}`}>
-            {toast.message}
-          </div>
-        ))}
-      </div>
     </>
   )
 }

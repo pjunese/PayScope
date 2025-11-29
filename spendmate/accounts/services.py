@@ -80,6 +80,7 @@ def _serialize_user(doc: Optional[Dict]) -> Optional[Dict]:
         "id": str(doc.get("_id") or doc.get("id")),
         "email": doc.get("email"),
         "name": doc.get("name") or "",
+        "nickname": doc.get("nickname") or doc.get("name") or "",
         "role": doc.get("role") or ROLE_MEMBER,
         "providers": doc.get("providers", []),
         "last_login_at": _isoformat(doc.get("last_login_at")),
@@ -108,6 +109,7 @@ def create_user(
     doc = {
         "email": email,
         "name": name or "",
+        "nickname": name or email.split("@", 1)[0],
         "password": hashed,
         "role": _preferred_role(email),
         "providers": providers or ["local"],
@@ -178,6 +180,37 @@ def record_user_login(user: Dict, provider: str) -> Dict:
 def get_user_profile(user: Union[str, ObjectId, Dict]) -> Optional[Dict]:
     doc = get_user_by_id(user)
     return _serialize_user(doc)
+
+
+def update_user_profile(user: Union[str, ObjectId, Dict], **fields) -> Optional[Dict]:
+    try:
+        object_id = ensure_object_id(user)
+    except ValueError:
+        return None
+
+    update_doc: Dict = {"$set": {"updated_at": _now()}}
+    if "nickname" in fields:
+        update_doc["$set"]["nickname"] = fields["nickname"]
+
+    result = _users_collection().find_one_and_update(
+        {"_id": object_id},
+        update_doc,
+        return_document=ReturnDocument.AFTER,
+    )
+    return _serialize_user(result)
+
+
+def is_nickname_available(nickname: str, exclude_user: Union[str, ObjectId, Dict, None] = None) -> bool:
+    if not nickname:
+        return False
+    query = {"nickname": nickname}
+    if exclude_user:
+        try:
+            object_id = ensure_object_id(exclude_user)
+            query["_id"] = {"$ne": object_id}
+        except ValueError:
+            pass
+    return _users_collection().count_documents(query, limit=1) == 0
 
 
 def get_user_role(user: Union[Dict, "MongoAuthUser", str, ObjectId]) -> str:

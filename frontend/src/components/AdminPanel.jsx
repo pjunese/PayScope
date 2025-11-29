@@ -82,7 +82,6 @@ export default function AdminPanel({ token, profile, onToast }) {
       <div className="admin-panel__header">
         <div>
           <h2>관리자 대시보드</h2>
-          <p className="admin-panel__subtitle">푸른 계열의 가벼운 느낌으로 구성된 회원 관리 페이지입니다.</p>
         </div>
         <button type="button" className="admin-refresh" onClick={loadUsers} disabled={isLoading}>
           {isLoading ? '불러오는 중...' : '새로고침'}

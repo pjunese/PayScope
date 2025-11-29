@@ -87,3 +87,16 @@ export async function fetchCalendarExpenses(token, month) {
   }
   return response.json()
 }
+
+export async function fetchUserActivity(token) {
+  const response = await fetch(`${API_BASE}/api/expenses/activity/`, {
+    headers: {
+      Authorization: `Token ${token}`,
+    },
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    throw new Error(payload?.detail || '활동 정보를 불러오지 못했습니다.')
+  }
+  return response.json()
+}

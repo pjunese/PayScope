@@ -18,6 +18,7 @@ class MongoAuthUser:
         self.id = str(doc.get("_id") or doc.get("id"))
         self.email = doc.get("email", "")
         self.name = doc.get("name", "")
+        self.nickname = doc.get("nickname") or doc.get("name", "")
         self.role = doc.get("role", services.ROLE_MEMBER)
 
     @property

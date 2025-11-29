@@ -31,6 +31,8 @@ from .services import (
     record_user_login,
     authenticate_user,
     update_user_role,
+    is_nickname_available,
+    update_user_profile,
 )
 from . import services
 
@@ -42,10 +44,13 @@ def _user_payload(user: object | None, profile: Optional[dict] = None) -> dict:
     if profile:
         return profile
 
+    nickname = getattr(user, "nickname", None) or getattr(user, "name", "")
+
     return {
         "id": getattr(user, "id", None),
         "email": getattr(user, "email", ""),
         "name": getattr(user, "first_name", "") or getattr(user, "name", ""),
+        "nickname": nickname,
         "role": get_user_role(user) if user else services.ROLE_MEMBER,
     }
 
@@ -276,6 +281,26 @@ class ProfileView(APIView):
     def get(self, request, *args, **kwargs):
         profile = get_user_profile(request.user)
         return Response(_user_payload(request.user, profile), status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        nickname = (request.data.get("nickname") or "").strip()
+        if not nickname:
+            return Response({"detail": "닉네임을 입력하세요."}, status=status.HTTP_400_BAD_REQUEST)
+        if not is_nickname_available(nickname, exclude_user=request.user):
+            return Response({"detail": "이미 사용 중인 닉네임입니다."}, status=status.HTTP_400_BAD_REQUEST)
+        profile = update_user_profile(request.user, nickname=nickname)
+        return Response(_user_payload(request.user, profile), status=status.HTTP_200_OK)
+
+
+class NicknameCheckView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        nickname = (request.query_params.get("nickname") or "").strip()
+        if not nickname:
+            return Response({"detail": "닉네임을 입력하세요."}, status=status.HTTP_400_BAD_REQUEST)
+        available = is_nickname_available(nickname, exclude_user=request.user)
+        return Response({"available": available}, status=status.HTTP_200_OK)
 
 
 class OAuthProvidersView(APIView):
