@@ -1031,14 +1031,9 @@ function App() {
           </nav>
           <div className="nav-actions">
             {!token ? (
-              <>
-                <button className="btn ghost" type="button" onClick={() => setShowLogin(true)}>
-                  Login
-                </button>
-                <button className="btn primary" type="button" onClick={() => setShowLogin(true)}>
-                  Sign Up
-                </button>
-              </>
+              <button className="btn primary" type="button" onClick={() => setShowLogin(true)}>
+                Login
+              </button>
             ) : (
               <>
                 <span className="nano">{profile?.nickname || profile?.email || 'Logged in'}</span>
