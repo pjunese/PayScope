@@ -306,8 +306,6 @@ function LandingPage({
             </button>
           </div>
         </div>
-
-        <div className="hero-card" aria-label="Placeholder"></div>
       </div>
     </section>
   )
@@ -1144,6 +1142,11 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <footer className="site-footer">
+          <div>PayScope · 이미지 기반 정산 자동화 서비스</div>
+          <div>문의: pjunese777@gmail.com</div>
+          <div>© {new Date().getFullYear()} PayScope</div>
+        </footer>
         <UploadToast feedback={uploadFeedback} />
       </div>
 
